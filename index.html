@@ -401,6 +401,8 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   table.roster td.is-empty { display:none; }
   table.roster .obs-cell { max-width:none; }
 }
+.obs-cell { display:block; -webkit-line-clamp:unset; overflow:visible; white-space:normal; overflow-wrap:anywhere; }
+#rosterCard > summary { font-size:15px; }
 </style>
 </head>
 <body class="gate-locked">
@@ -497,9 +499,9 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     <h2 class="sec-title">Empresas</h2>
     <div class="lanes" id="empresaLanes"></div>
 
-    <div class="card" id="rosterCard">
-      <div class="roster-head">
-        <h2 class="sec-title" id="rosterTitle">Veículos</h2>
+    <details class="card" id="rosterCard" open>
+      <summary id="rosterTitle">Veículos</summary>
+      <div class="roster-head" style="justify-content:flex-end; margin-bottom:8px;">
         <button type="button" class="ghost-btn" id="clearFiltersBtn" style="display:none; margin-left:0;">Limpar filtros</button>
       </div>
       <div class="filter-groups">
@@ -574,7 +576,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
           <div class="form-msg" id="exportMsg" style="margin-top:4px; font-size:11.5px;"></div>
         </div>
       </div>
-    </div>
+    </details>
 
     <details class="card" id="recentCard" open style="margin-top:16px;">
       <summary>Últimos registros</summary>
@@ -1647,6 +1649,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   });
   document.getElementById('filterCiclo').addEventListener('change', function(){ panelPage=0; renderPainel(); });
   function scrollToRoster(){
+    document.getElementById('rosterCard').open = true;
     document.getElementById('rosterCard').scrollIntoView({ behavior:'smooth', block:'start' });
   }
   document.getElementById('panelSummary').addEventListener('click', function(e){
@@ -3563,7 +3566,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261006153147';
+  var APP_BUILD = '20261006153606';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
