@@ -390,6 +390,17 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 .mb-bar { height:12px; border-radius:6px; background:var(--surface-2); overflow:hidden; }
 .mb-bar span { display:block; height:100%; background:var(--ok); border-radius:6px; }
 .mb-legend:empty { display:none; }
+.obs-cell { max-width:300px; min-width:150px; font-size:12.5px; color:var(--ink-soft); line-height:1.4; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+.sap-cell.nosap { color:var(--danger); font-size:12px; white-space:nowrap; }
+@media (max-width:640px){
+  table.roster td.sap-cell { grid-column:1 / -1; text-align:left; color:var(--ink-soft); }
+  table.roster td.sap-cell::before { content:'SAP '; font-family:var(--font-sans); }
+  table.roster td.sap-cell.nosap { color:var(--danger); }
+  table.roster td.sap-cell.nosap::before { content:''; }
+  table.roster td.obs-td { grid-column:1 / -1; text-align:left; }
+  table.roster td.is-empty { display:none; }
+  table.roster .obs-cell { max-width:none; }
+}
 </style>
 </head>
 <body class="gate-locked">
@@ -542,6 +553,8 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
               <th class="sortable" data-key="last">Última Inspeção <span class="sort-ind"></span></th>
               <th class="sortable" data-key="doneInCycle"><span class="th-label">Mês Atual</span> <span class="sort-ind"></span></th>
               <th class="sortable" data-key="doneLast3">Últ. 3 meses <span class="sort-ind"></span></th>
+              <th class="sortable" data-key="sap">Nº SAP <span class="sort-ind"></span></th>
+              <th>Observações da última inspeção</th>
             </tr>
           </thead>
           <tbody id="rosterBody"></tbody>
@@ -1487,7 +1500,8 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       var st = vehicleStatusPainel(v.p, cycleYM);
       return {
         p: v.p, t: v.t, c: v.c, e: v.e,
-        last: st.last, doneInCycle: st.doneInCycle, doneLast3: st.doneLast3
+        last: st.last, doneInCycle: st.doneInCycle, doneLast3: st.doneLast3,
+        sap: st.last ? (st.last.sapN || null) : null
       };
     });
   }
@@ -1609,9 +1623,11 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
         '<td class="mono">'+(r.last?fmtDateBR(r.last.d):'—')+'</td>'+
         '<td><span class="dot '+(r.doneInCycle?'ok':'pending')+'"></span>'+(r.doneInCycle?'Feito':'Pendente')+'</td>'+
         '<td><span class="dot '+(r.doneLast3?'ok':'pending')+'"></span>'+(r.doneLast3?'Sim':'Não')+'</td>'+
+        (r.last ? (r.sap ? '<td class="mono sap-cell">'+escapeHtml(String(r.sap))+'</td>' : '<td class="sap-cell nosap">Sem SAP</td>') : '<td class="sap-cell is-empty">—</td>')+
+        ((r.last && r.last.obs) ? '<td class="obs-td"><div class="obs-cell" title="'+escapeHtml(r.last.obs)+'">'+escapeHtml(r.last.obs)+'</div></td>' : '<td class="obs-td is-empty">—</td>')+
         '</tr>';
     }).join('');
-    document.getElementById('rosterBody').innerHTML = rows || '<tr><td colspan="7" class="empty-note">Nenhum veículo encontrado com esses filtros.</td></tr>';
+    document.getElementById('rosterBody').innerHTML = rows || '<tr><td colspan="9" class="empty-note">Nenhum veículo encontrado com esses filtros.</td></tr>';
     document.getElementById('pagerInfo').textContent = filtered.length + ' veículo(s) — página ' + (panelPage+1) + ' de ' + totalPages;
     document.getElementById('pagerPrev').disabled = panelPage<=0;
     document.getElementById('pagerNext').disabled = panelPage>=totalPages-1;
@@ -3119,7 +3135,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     if(filterSap === 'com') sorted = sorted.filter(function(r){ return !!r.sapN; });
     else if(filterSap === 'sem') sorted = sorted.filter(function(r){ return !r.sapN; });
     if(!sorted.length){ el.innerHTML = '<div class="empty-note">Nenhum registro encontrado com esse filtro.</div>'; return; }
-    var html = '<div class="table-wrap" style="margin-top:8px;"><table class="history"><thead><tr><th></th><th>Nº SAP</th><th>Placa/Posto</th><th>Data</th><th>Categoria</th><th>Inspetor</th><th>Foto</th><th>Ações</th></tr></thead><tbody>';
+    var html = '<div class="table-wrap" style="margin-top:8px;"><table class="history"><thead><tr><th></th><th>Nº SAP</th><th>Placa/Posto</th><th>Data</th><th>Categoria</th><th>Inspetor</th><th>Observações</th><th>Foto</th><th>Ações</th></tr></thead><tbody>';
     var recordsWithPhotosInOrder = [];
     sorted.slice(0,40).forEach(function(r){
       if(r._docId && r._docId === editingRecentDocId){
@@ -3133,7 +3149,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       var cat = isPosto ? '—' : (r.c==='C'?'Coletivo':'Leve');
       var sapCell = r.sapN ? '<span class="mono">'+escapeHtml(r.sapN)+'</span>' : '<span style="color:var(--danger); font-size:12px;">Sem SAP</span>';
       var acoes = (r._docId && canEditNow()) ? '<button type="button" class="ghost-btn editRecentBtn" data-docid="'+r._docId+'" style="margin-left:0;">Editar</button>' : '—';
-      html += '<tr><td><input type="checkbox" class="recentSelectChk" data-docid="'+r._docId+'"></td><td>'+sapCell+'</td><td class="mono">'+ident+'</td><td class="date">'+fmtDateBR(r.d)+'</td><td>'+cat+'</td><td>'+escapeHtml(r.insp||'—')+'</td><td>'+foto+'</td><td>'+acoes+'</td></tr>';
+      html += '<tr><td><input type="checkbox" class="recentSelectChk" data-docid="'+r._docId+'"></td><td>'+sapCell+'</td><td class="mono">'+ident+'</td><td class="date">'+fmtDateBR(r.d)+'</td><td>'+cat+'</td><td>'+escapeHtml(r.insp||'—')+'</td><td><div class="obs-cell" title="'+escapeHtml(r.obs||'')+'">'+escapeHtml(r.obs||'—')+'</div></td><td>'+foto+'</td><td>'+acoes+'</td></tr>';
     });
     html += '</tbody></table></div>';
     el.innerHTML = html;
@@ -3144,7 +3160,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   function editRecentRowHtml(r){
     var isPosto = r.modo === '5s';
     if(isPosto){
-      return '<tr class="editRow" data-docid="'+r._docId+'"><td colspan="8">' +
+      return '<tr class="editRow" data-docid="'+r._docId+'"><td colspan="9">' +
         '<div class="edit-panel">' +
           '<div class="edit-grid">' +
             '<div class="full"><label>Posto</label><input type="text" class="mono" value="'+escapeHtml((r.postoNome||'—')+' ('+(r.postoCod||'—')+')')+'" disabled></div>' +
@@ -3171,7 +3187,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     var catOpts = ['C','L'].map(function(c){
       return '<option value="'+c+'"'+(r.c===c?' selected':'')+'>'+(c==='C'?'Coletivo':'Leve')+'</option>';
     }).join('');
-    return '<tr class="editRow" data-docid="'+r._docId+'"><td colspan="8">' +
+    return '<tr class="editRow" data-docid="'+r._docId+'"><td colspan="9">' +
       '<div class="edit-panel">' +
         '<div class="edit-grid">' +
           '<div><label>Placa</label><input type="text" class="mono editPlaca" value="'+escapeHtml(r.p||'')+'"></div>' +
@@ -3547,7 +3563,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261006112651';
+  var APP_BUILD = '20261006153147';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
