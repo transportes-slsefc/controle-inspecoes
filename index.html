@@ -1290,6 +1290,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
         '<div class="form-actions">' +
           '<button type="button" class="submit saveHistBtn">Salvar</button>' +
           '<button type="button" class="ghost-btn cancelHistBtn">Cancelar</button>' +
+          '<button type="button" class="ghost-btn deleteRecBtn" data-docid="'+h._docId+'" style="color:var(--danger);">Excluir</button>' +
         '</div>' +
       '</div>' +
     '</td></tr>';
@@ -1875,6 +1876,42 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       t.disabled = true;
       saveBaseVeiculo({ placa:placa, tag:tagRaw, categoria:cat, empresa:emp, ativo:true }, placa+' salvo na base.').then(function(){ t.disabled = false; });
     }
+  });
+
+
+  function persistDelete(docId){
+    return supabase.from('inspecoes_veiculares').delete().eq('id', parseInt(docId, 10)).select('id').then(function(res){
+      if(res.error) throw res.error;
+      if(!res.data || !res.data.length) throw new Error('permission denied');
+      return res;
+    });
+  }
+
+  // ---------- excluir registro ----------
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('.deleteRecBtn') : null;
+    if(!btn) return;
+    var docId = btn.dataset.docid;
+    var all = novasInspecoes.concat(novosPostos5S);
+    var entry = all.filter(function(x){ return x._docId === docId; })[0];
+    if(!entry) return;
+    var nome = entry.modo === '5s' ? (entry.postoNome || 'posto') : (entry.p || 'veículo');
+    if(!window.confirm('Excluir o registro de ' + nome + ' do dia ' + fmtDateBR(entry.d) + '? Isso não pode ser desfeito.')) return;
+    btn.disabled = true;
+    persistDelete(docId).then(function(){
+      novasInspecoes = novasInspecoes.filter(function(x){ return x._docId !== docId; });
+      novosPostos5S = novosPostos5S.filter(function(x){ return x._docId !== docId; });
+      editingRecentDocId = null;
+      try{ fillDatalist(); }catch(err){}
+      renderRecent();
+      renderPainel();
+      if(document.getElementById('searchResult').innerHTML && lastSearchQuery) renderSearchResult(lastSearchQuery);
+      var m = document.getElementById('selReportMsg');
+      if(m){ m.textContent = 'Registro excluído.'; m.className = 'form-msg ok'; }
+    }).catch(function(err){
+      btn.disabled = false;
+      window.alert(friendlyBaseError(err));
+    });
   });
 
   // ---------- REGISTRAR (lote + relatório) ----------
@@ -3126,6 +3163,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
           '<div class="form-actions">' +
             '<button type="button" class="submit saveRecentBtn">Salvar</button>' +
             '<button type="button" class="ghost-btn cancelRecentBtn">Cancelar</button>' +
+            '<button type="button" class="ghost-btn deleteRecBtn" data-docid="'+r._docId+'" style="color:var(--danger);">Excluir</button>' +
           '</div>' +
         '</div>' +
       '</td></tr>';
@@ -3151,6 +3189,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
         '<div class="form-actions">' +
           '<button type="button" class="submit saveRecentBtn">Salvar</button>' +
           '<button type="button" class="ghost-btn cancelRecentBtn">Cancelar</button>' +
+            '<button type="button" class="ghost-btn deleteRecBtn" data-docid="'+r._docId+'" style="color:var(--danger);">Excluir</button>' +
         '</div>' +
       '</div>' +
     '</td></tr>';
@@ -3379,13 +3418,11 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
         }
         return base;
       });
-      return Promise.all(docs.map(function(d){
-        return supabase.from('inspecoes_veiculares').insert(toDbPayload(d)).select('id').single().then(function(res){
-          if(res.error) throw res.error;
-          d._docId = String(res.data.id);
-          return res;
-        });
-      })).then(function(){
+      // Um único envio para todos os veículos: ou salva tudo, ou não salva nada
+      // (antes, se um falhasse, os outros ficavam salvos e um novo envio duplicava).
+      return supabase.from('inspecoes_veiculares').insert(docs.map(toDbPayload)).select('id').then(function(res){
+        if(res.error) throw res.error;
+        (res.data || []).forEach(function(row, i){ if(docs[i]) docs[i]._docId = String(row.id); });
         docs.forEach(function(d){ if(s5) novosPostos5S.push(d); else novasInspecoes.push(d); });
         msg.textContent = docs.length + ' inspeção(ões) registrada(s) com sucesso.';
         msg.className = 'form-msg ok';
@@ -3510,7 +3547,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261006013158';
+  var APP_BUILD = '20261006112651';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
