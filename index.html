@@ -383,6 +383,13 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 }
 @media (min-width:760px){ .lanes { display:grid; grid-template-columns:1fr 1fr; } }
 .mb-head .fg-select { max-width:112px; flex:none; }
+.mb-track { display:flex; flex-direction:column; gap:12px; height:auto; margin:16px 0 14px; }
+.mb-row-head { display:flex; justify-content:space-between; align-items:baseline; font-size:13.5px; font-weight:600; margin-bottom:6px; }
+.mb-row-num { font-family:var(--font-mono); font-size:12.5px; font-weight:400; color:var(--ink-soft); }
+.mb-row-num b { color:var(--ink); }
+.mb-bar { height:12px; border-radius:6px; background:var(--surface-2); overflow:hidden; }
+.mb-bar span { display:block; height:100%; background:var(--ok); border-radius:6px; }
+.mb-legend:empty { display:none; }
 </style>
 </head>
 <body class="gate-locked">
@@ -1508,11 +1515,15 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     var names = empresaNames().map(function(o){ return o.name; }).filter(function(n){ return by[n]; });
     Object.keys(by).forEach(function(n){ if(names.indexOf(n) === -1) names.push(n); });
 
-    document.getElementById('mbTrack').innerHTML = names.map(function(n){
-      var o = by[n];
-      return '<div class="mb-seg" style="flex:'+o.total+' 1 0;" title="'+escapeHtml(n)+': '+o.done+' de '+o.total+'"><span style="width:'+(o.total ? (o.done*100/o.total) : 0)+'%"></span></div>';
-    }).join('');
-    document.getElementById('mbLegend').textContent = 'Cada trecho da barra é uma empresa; o verde é o que já foi inspecionado no mês.';
+    function catBar(label, cat){
+      var list = roster.filter(function(r){ return r.c === cat; });
+      var d = list.filter(function(r){ return r.doneInCycle; }).length;
+      var p = list.length ? Math.round(d * 100 / list.length) : 0;
+      return '<div class="mb-row"><div class="mb-row-head"><span>'+label+'</span><span class="mb-row-num"><b>'+d+'</b> de '+list.length+' ('+p+'%)</span></div>' +
+        '<div class="mb-bar"><span style="width:'+(list.length ? (d*100/list.length) : 0)+'%"></span></div></div>';
+    }
+    document.getElementById('mbTrack').innerHTML = catBar('Coletivos', 'C') + catBar('Leves', 'L');
+    document.getElementById('mbLegend').textContent = '';
 
     function tile(num, label, cls, set, on){
       return '<button type="button" class="tile '+cls+(on?' on':'')+'" data-set="'+set+'"><b>'+num+'</b><span>'+label+'</span></button>';
