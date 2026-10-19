@@ -403,6 +403,22 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 }
 .obs-cell { display:block; -webkit-line-clamp:unset; overflow:visible; white-space:normal; overflow-wrap:anywhere; }
 #rosterCard > summary { font-size:15px; }
+
+/* ---- Highlights ---- */
+.hl-period { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.hl-item { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; margin-top:12px; }
+.hl-item-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.hl-item-head span { font-size:13px; color:var(--ink-soft); }
+.hl-rm { border:none; background:transparent; color:var(--danger); font-size:22px; line-height:1; cursor:pointer; padding:2px 6px; }
+.hl-types { display:grid; grid-template-columns:repeat(2, 1fr); gap:6px; margin-bottom:12px; }
+@media (min-width:700px){ .hl-types { grid-template-columns:repeat(4, 1fr); } }
+.hl-type { border:1px solid var(--border); background:var(--bg); color:var(--ink); border-radius:10px; padding:10px 8px; font-size:13.5px; cursor:pointer; font-family:var(--font-sans); text-align:center; }
+.hl-type.on { border-color:var(--accent); background:var(--surface-2); font-weight:600; }
+.hl-item label { display:block; font-size:13px; color:var(--ink-soft); margin:10px 0 6px; }
+.hl-item textarea { min-height:96px; }
+.hl-add { width:100%; margin-top:12px; padding:14px; border:1px dashed var(--border); border-radius:14px; background:transparent; color:var(--ink); font-size:15px; font-weight:600; cursor:pointer; font-family:var(--font-sans); }
+.hl-add:hover { border-color:var(--accent); }
+#hlPreview { white-space:pre-wrap; }
 </style>
 </head>
 <body class="gate-locked">
@@ -468,6 +484,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       <nav class="tabs" id="tabs">
         <button data-view="painel" class="active">Painel</button>
         <button data-view="registrar">Registrar <span id="registrarLockIcon">🔒</span></button>
+        <button data-view="highlights">Highlights</button>
       </nav>
     </div>
   </header>
@@ -748,6 +765,39 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       </form>
     </div>
 
+  </section>
+
+  <!-- ===== HIGHLIGHTS ===== -->
+  <section class="view" id="view-highlights">
+    <div class="card">
+      <h2 class="sec-title" style="margin-top:0;">Período</h2>
+      <div class="hl-period">
+        <div><label for="hlIni">De</label><input type="date" id="hlIni"></div>
+        <div><label for="hlFim">Até</label><input type="date" id="hlFim"></div>
+      </div>
+      <div class="chip-row" style="margin-top:10px;">
+        <button type="button" class="chip" id="hlSemanaAtual">Semana atual</button>
+        <button type="button" class="chip" id="hlSemanaPassada">Semana passada</button>
+      </div>
+    </div>
+
+    <div id="hlItems"></div>
+    <button type="button" class="hl-add" id="hlAddBtn">+ Adicionar ponto</button>
+
+    <div class="report-preview" style="margin-top:16px;">
+      <div class="report-preview-head" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span>Prévia do highlight</span>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="ghost-btn" id="hlCopyBtn" style="margin-left:0;">Copiar texto</button>
+          <a class="ghost-btn" id="hlWaBtn" href="https://wa.me/" target="_blank" rel="noopener">Abrir no WhatsApp</a>
+        </div>
+      </div>
+      <pre id="hlPreview"></pre>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+      <button type="button" class="ghost-btn" id="hlClearBtn" style="margin-left:0;">Limpar tudo</button>
+      <span class="form-msg" id="hlMsg"></span>
+    </div>
   </section>
 
   <footer class="note">Base consolidada a partir de STOP - Coletivos e STOP - Leves · dados históricos embutidos + registros novos salvos no Supabase.</footer>
@@ -1038,7 +1088,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   }
 
   // ---------- tabs ----------
-  var views = ['painel','registrar'];
+  var views = ['painel','registrar','highlights'];
   function canEditNow(){ return editUnlocked; }
   document.getElementById('tabs').addEventListener('click', function(e){
     var btn = e.target.closest('button[data-view]');
@@ -1932,6 +1982,167 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       window.alert(friendlyBaseError(err));
     });
   });
+
+
+  // ---------- GERADOR DE HIGHLIGHTS ----------
+  (function(){
+    var HL_TIPOS = [
+      { id:'neg', label:'🔴 Negativo', titulo:'🔴 Negativos' },
+      { id:'aten', label:'🟡 Atenção', titulo:'🟡 Atenção' },
+      { id:'pos', label:'🟢 Positivo', titulo:'🟢 Positivos' },
+      { id:'ajuda', label:'🔵 Pedido de ajuda', titulo:'🔵 Pedidos de Ajuda' }
+    ];
+    var HL_PROCESSOS = ['Transporte SLS EFC', 'Manutenção Externa de Próprios'];
+    var HL_KEY = 'inspecoes_highlights_rascunho';
+    var hlState = { ini:'', fim:'', items:[] };
+    var hlSeq = 0;
+
+    function ymd(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+    function semana(offsetWeeks){
+      var d = new Date(); d.setHours(12,0,0,0);
+      var dow = (d.getDay() + 6) % 7; // segunda = 0
+      d.setDate(d.getDate() - dow + offsetWeeks*7);
+      var fim = new Date(d); fim.setDate(d.getDate() + 6);
+      return [ymd(d), ymd(fim)];
+    }
+    function ddmm(s){ return s ? s.slice(8,10)+'/'+s.slice(5,7) : '??/??'; }
+    function save(){ try{ localStorage.setItem(HL_KEY, JSON.stringify(hlState)); }catch(e){} }
+    function load(){
+      try{
+        var raw = localStorage.getItem(HL_KEY);
+        if(raw){ var o = JSON.parse(raw); if(o && o.items){ hlState = o; } }
+      }catch(e){}
+      hlState.items.forEach(function(it){ var n = parseInt(String(it.id).replace(/\D/g,''),10); if(n > hlSeq) hlSeq = n; });
+    }
+    function newItem(){ hlSeq++; return { id:'hl'+hlSeq, tipo:'', proc:'', procOutro:'', desc:'' }; }
+    function procName(it){ return it.proc === '__outro__' ? (it.procOutro||'').trim() : it.proc; }
+
+    function buildText(){
+      var dias = 0;
+      if(hlState.ini && hlState.fim){ dias = Math.round((new Date(hlState.fim) - new Date(hlState.ini)) / 86400000) + 1; }
+      var rotulo = (dias === 7 || !hlState.ini || !hlState.fim) ? 'Semana' : 'Período';
+      var out = '*Highlights | ' + rotulo + ' ' + ddmm(hlState.ini) + ' a ' + ddmm(hlState.fim) + ':*\n\n';
+      HL_TIPOS.forEach(function(t){
+        out += '\n*' + t.titulo + ':*\n';
+        var its = hlState.items.filter(function(it){ return it.tipo === t.id && (it.desc.trim() || procName(it)); });
+        its.forEach(function(it, i){
+          var p = procName(it);
+          out += (p ? '*' + p + '*: ' : '') + it.desc.trim() + '\n';
+          if(i < its.length - 1) out += '\n';
+        });
+      });
+      return out.replace(/\n+$/, '');
+    }
+
+    function renderPreview(){
+      var text = buildText();
+      document.getElementById('hlPreview').textContent = text;
+      document.getElementById('hlWaBtn').href = 'https://wa.me/?text=' + encodeURIComponent(text);
+      save();
+    }
+
+    function renderItems(){
+      var host = document.getElementById('hlItems');
+      host.innerHTML = hlState.items.map(function(it, idx){
+        var tipos = HL_TIPOS.map(function(t){
+          return '<button type="button" class="hl-type'+(it.tipo===t.id?' on':'')+'" data-tipo="'+t.id+'">'+t.label+'</button>';
+        }).join('');
+        var procOpts = '<option value="">Escolha o processo</option>' + HL_PROCESSOS.map(function(p){
+          return '<option value="'+escapeHtml(p)+'"'+(it.proc===p?' selected':'')+'>'+escapeHtml(p)+'</option>';
+        }).join('') + '<option value="__outro__"'+(it.proc==='__outro__'?' selected':'')+'>Outro (digitar)</option>';
+        return '<div class="hl-item" data-id="'+it.id+'">' +
+          '<div class="hl-item-head"><span>Ponto '+(idx+1)+'</span>' +
+          (hlState.items.length > 1 ? '<button type="button" class="hl-rm" title="Remover ponto" aria-label="Remover ponto">×</button>' : '') + '</div>' +
+          '<div class="hl-types">'+tipos+'</div>' +
+          '<label>Processo</label><select class="hl-proc">'+procOpts+'</select>' +
+          '<input type="text" class="hl-proc-outro" placeholder="Nome do processo" value="'+escapeHtml(it.procOutro||'')+'" style="margin-top:8px; display:'+(it.proc==='__outro__'?'block':'none')+';">' +
+          '<label>O que aconteceu</label><textarea class="hl-desc" placeholder="Descreva o ponto">'+escapeHtml(it.desc||'')+'</textarea>' +
+        '</div>';
+      }).join('');
+      renderPreview();
+    }
+
+    function itemOf(el){
+      var card = el.closest('.hl-item');
+      if(!card) return null;
+      return hlState.items.filter(function(x){ return x.id === card.dataset.id; })[0] || null;
+    }
+
+    var host = document.getElementById('hlItems');
+    host.addEventListener('click', function(e){
+      var it = itemOf(e.target);
+      if(!it) return;
+      var tb = e.target.closest('.hl-type');
+      if(tb){ it.tipo = (it.tipo === tb.dataset.tipo) ? '' : tb.dataset.tipo; renderItems(); return; }
+      if(e.target.closest('.hl-rm')){
+        hlState.items = hlState.items.filter(function(x){ return x !== it; });
+        renderItems();
+      }
+    });
+    host.addEventListener('change', function(e){
+      var it = itemOf(e.target);
+      if(!it) return;
+      if(e.target.classList.contains('hl-proc')){
+        it.proc = e.target.value;
+        var outro = e.target.closest('.hl-item').querySelector('.hl-proc-outro');
+        outro.style.display = it.proc === '__outro__' ? 'block' : 'none';
+        if(it.proc === '__outro__') outro.focus();
+        renderPreview();
+      }
+    });
+    host.addEventListener('input', function(e){
+      var it = itemOf(e.target);
+      if(!it) return;
+      if(e.target.classList.contains('hl-desc')) it.desc = e.target.value;
+      if(e.target.classList.contains('hl-proc-outro')) it.procOutro = e.target.value;
+      renderPreview();
+    });
+
+    document.getElementById('hlAddBtn').addEventListener('click', function(){
+      hlState.items.push(newItem());
+      renderItems();
+      var cards = host.querySelectorAll('.hl-item');
+      if(cards.length) cards[cards.length-1].scrollIntoView({ behavior:'smooth', block:'center' });
+    });
+    function setPeriod(p){
+      hlState.ini = p[0]; hlState.fim = p[1];
+      document.getElementById('hlIni').value = p[0];
+      document.getElementById('hlFim').value = p[1];
+      renderPreview();
+    }
+    document.getElementById('hlSemanaAtual').addEventListener('click', function(){ setPeriod(semana(0)); });
+    document.getElementById('hlSemanaPassada').addEventListener('click', function(){ setPeriod(semana(-1)); });
+    document.getElementById('hlIni').addEventListener('change', function(){ hlState.ini = this.value; renderPreview(); });
+    document.getElementById('hlFim').addEventListener('change', function(){ hlState.fim = this.value; renderPreview(); });
+
+    document.getElementById('hlCopyBtn').addEventListener('click', function(){
+      var msg = document.getElementById('hlMsg');
+      var text = buildText();
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){
+          msg.textContent = 'Texto copiado.'; msg.className = 'form-msg ok';
+        }).catch(function(){
+          msg.textContent = 'Não foi possível copiar. Selecione o texto da prévia.'; msg.className = 'form-msg err';
+        });
+      } else {
+        msg.textContent = 'Não foi possível copiar. Selecione o texto da prévia.'; msg.className = 'form-msg err';
+      }
+    });
+    document.getElementById('hlClearBtn').addEventListener('click', function(){
+      if(!window.confirm('Apagar todos os pontos deste highlight?')) return;
+      hlState.items = [newItem()];
+      setPeriod(semana(0));
+      renderItems();
+      var msg = document.getElementById('hlMsg'); msg.textContent = 'Highlight limpo.'; msg.className = 'form-msg ok';
+    });
+
+    load();
+    if(!hlState.ini || !hlState.fim){ var p = semana(0); hlState.ini = p[0]; hlState.fim = p[1]; }
+    document.getElementById('hlIni').value = hlState.ini;
+    document.getElementById('hlFim').value = hlState.fim;
+    if(!hlState.items.length) hlState.items.push(newItem());
+    renderItems();
+  })();
 
   // ---------- REGISTRAR (lote + relatório) ----------
   document.getElementById('fData').value = todayYMD();
@@ -3566,7 +3777,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261006153606';
+  var APP_BUILD = '20261019212754';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
