@@ -419,6 +419,18 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 .hl-add { width:100%; margin-top:12px; padding:14px; border:1px dashed var(--border); border-radius:14px; background:transparent; color:var(--ink); font-size:15px; font-weight:600; cursor:pointer; font-family:var(--font-sans); }
 .hl-add:hover { border-color:var(--accent); }
 #hlPreview { white-space:pre-wrap; }
+
+.hl-add-row { display:grid; grid-template-columns:2fr 1fr; gap:8px; }
+.hl-add-fav { color:var(--accent); }
+.hl-head-actions { display:flex; align-items:center; gap:4px; }
+.hl-star { border:none; background:transparent; color:var(--ink-soft); font-size:13px; cursor:pointer; padding:4px 6px; font-family:var(--font-sans); }
+.hl-star.on { color:var(--accent); }
+.hl-saved { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+.hl-saved:first-child { border-top:none; }
+.hl-saved-text { min-width:0; font-size:13.5px; }
+.hl-saved-text b { display:block; font-weight:600; }
+.hl-saved-text span { color:var(--ink-soft); font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.hl-saved-actions { display:flex; gap:4px; flex:none; }
 </style>
 </head>
 <body class="gate-locked">
@@ -782,7 +794,15 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     </div>
 
     <div id="hlItems"></div>
-    <button type="button" class="hl-add" id="hlAddBtn">+ Adicionar ponto</button>
+    <div class="hl-add-row">
+      <button type="button" class="hl-add" id="hlAddBtn">+ Adicionar ponto</button>
+      <button type="button" class="hl-add hl-add-fav" id="hlFavToggle">★ Favoritos</button>
+    </div>
+    <div class="card hl-fav-panel" id="hlFavPanel" style="display:none; margin-top:12px;">
+      <h2 class="sec-title" style="margin-top:0;">Pontos favoritos</h2>
+      <p class="hint" style="margin:0 0 8px;">Toque em ☆ num ponto pra guardar aqui. Depois é só adicionar de novo num próximo highlight.</p>
+      <div id="hlFavList"></div>
+    </div>
 
     <div class="report-preview" style="margin-top:16px;">
       <div class="report-preview-head" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -795,9 +815,14 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       <pre id="hlPreview"></pre>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+      <button type="button" class="ghost-btn" id="hlSaveDraftBtn" style="margin-left:0;">Salvar rascunho</button>
       <button type="button" class="ghost-btn" id="hlClearBtn" style="margin-left:0;">Limpar tudo</button>
       <span class="form-msg" id="hlMsg"></span>
     </div>
+    <details class="card" id="hlDraftsCard" style="margin-top:16px;">
+      <summary>Rascunhos salvos</summary>
+      <div id="hlDraftList"></div>
+    </details>
   </section>
 
   <footer class="note">Base consolidada a partir de STOP - Coletivos e STOP - Leves · dados históricos embutidos + registros novos salvos no Supabase.</footer>
@@ -1994,6 +2019,12 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     ];
     var HL_PROCESSOS = ['Transporte Coletivo', 'Leves', 'Manutenção Externa de Próprios', 'Mobilidade', 'Lavador de Veículos', 'Cartão de Abastecimento', 'Sistemas Embarcados'];
     var HL_KEY = 'inspecoes_highlights_rascunho';
+    var HL_FAV_KEY = 'inspecoes_highlights_favoritos';
+    var HL_DRAFTS_KEY = 'inspecoes_highlights_rascunhos_salvos';
+    function lsGet(k){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : []; }catch(e){ return []; } }
+    function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
+    function favKey(f){ return [f.tipo, f.proc, (f.procOutro||'').trim(), (f.desc||'').trim()].join('|'); }
+    function tipoLabel(id){ var t = HL_TIPOS.filter(function(x){ return x.id === id; })[0]; return t ? t.label : 'Sem tipo'; }
     var hlState = { ini:'', fim:'', items:[] };
     var hlSeq = 0;
 
@@ -2065,8 +2096,9 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
           return '<option value="'+escapeHtml(p)+'"'+(it.proc===p?' selected':'')+'>'+escapeHtml(p)+'</option>';
         }).join('') + '<option value="__outro__"'+(it.proc==='__outro__'?' selected':'')+'>Outro (digitar)</option>';
         return '<div class="hl-item" data-id="'+it.id+'">' +
-          '<div class="hl-item-head"><span>Ponto '+(idx+1)+'</span>' +
-          (hlState.items.length > 1 ? '<button type="button" class="hl-rm" title="Remover ponto" aria-label="Remover ponto">×</button>' : '') + '</div>' +
+          '<div class="hl-item-head"><span>Ponto '+(idx+1)+'</span><div class="hl-head-actions">' +
+          (function(){ var on = lsGet(HL_FAV_KEY).some(function(f){ return favKey(f) === favKey(it); }); return '<button type="button" class="hl-star'+(on?' on':'')+'" title="Guardar nos favoritos">'+(on?'★ Favorito':'☆ Favoritar')+'</button>'; })() +
+          (hlState.items.length > 1 ? '<button type="button" class="hl-rm" title="Remover ponto" aria-label="Remover ponto">×</button>' : '') + '</div></div>' +
           '<div class="hl-types">'+tipos+'</div>' +
           '<label>Processo</label><select class="hl-proc">'+procOpts+'</select>' +
           '<input type="text" class="hl-proc-outro" placeholder="Nome do processo" value="'+escapeHtml(it.procOutro||'')+'" style="margin-top:8px; display:'+(it.proc==='__outro__'?'block':'none')+';">' +
@@ -2088,6 +2120,20 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       if(!it) return;
       var tb = e.target.closest('.hl-type');
       if(tb){ it.tipo = (it.tipo === tb.dataset.tipo) ? '' : tb.dataset.tipo; renderItems(); return; }
+      if(e.target.closest('.hl-star')){
+        var favs = lsGet(HL_FAV_KEY);
+        var k = favKey(it);
+        var exists = favs.some(function(f){ return favKey(f) === k; });
+        if(exists){ favs = favs.filter(function(f){ return favKey(f) !== k; }); }
+        else {
+          if(!it.desc.trim() && !procName(it)){ hlMsg('Preencha o ponto antes de favoritar.', false); return; }
+          favs.push({ tipo:it.tipo, proc:it.proc, procOutro:it.procOutro, desc:it.desc });
+        }
+        lsSet(HL_FAV_KEY, favs);
+        hlMsg(exists ? 'Removido dos favoritos.' : 'Guardado nos favoritos.', true);
+        renderItems(); renderFavs();
+        return;
+      }
       if(e.target.closest('.hl-rm')){
         hlState.items = hlState.items.filter(function(x){ return x !== it; });
         renderItems();
@@ -2150,7 +2196,94 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       var msg = document.getElementById('hlMsg'); msg.textContent = 'Highlight limpo.'; msg.className = 'form-msg ok';
     });
 
+    function hlMsg(t, ok){ var m = document.getElementById('hlMsg'); m.textContent = t; m.className = 'form-msg ' + (ok ? 'ok' : 'err'); }
+
+    function renderFavs(){
+      var favs = lsGet(HL_FAV_KEY);
+      document.getElementById('hlFavToggle').textContent = '★ Favoritos' + (favs.length ? ' (' + favs.length + ')' : '');
+      document.getElementById('hlFavList').innerHTML = favs.length ? favs.map(function(f, i){
+        var p = f.proc === '__outro__' ? (f.procOutro||'') : f.proc;
+        return '<div class="hl-saved"><div class="hl-saved-text"><b>'+escapeHtml(tipoLabel(f.tipo))+(p ? ' · '+escapeHtml(p) : '')+'</b><span>'+escapeHtml(f.desc||'')+'</span></div>' +
+          '<div class="hl-saved-actions"><button type="button" class="ghost-btn hlFavUse" data-i="'+i+'" style="margin-left:0;">Adicionar</button>' +
+          '<button type="button" class="hl-rm hlFavDel" data-i="'+i+'" title="Apagar favorito" aria-label="Apagar favorito">×</button></div></div>';
+      }).join('') : '<p class="empty-note" style="margin:0;">Nenhum favorito ainda.</p>';
+    }
+    document.getElementById('hlFavToggle').addEventListener('click', function(){
+      var p = document.getElementById('hlFavPanel');
+      p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      renderFavs();
+    });
+    document.getElementById('hlFavList').addEventListener('click', function(e){
+      var favs = lsGet(HL_FAV_KEY);
+      var u = e.target.closest('.hlFavUse'), d = e.target.closest('.hlFavDel');
+      if(u){
+        var f = favs[parseInt(u.dataset.i, 10)]; if(!f) return;
+        var it = newItem(); it.tipo = f.tipo; it.proc = f.proc; it.procOutro = f.procOutro || ''; it.desc = f.desc || '';
+        // se o único ponto da tela está vazio, usa ele em vez de criar outro
+        if(hlState.items.length === 1 && !hlState.items[0].tipo && !hlState.items[0].proc && !hlState.items[0].desc.trim()) hlState.items = [it];
+        else hlState.items.push(it);
+        renderItems();
+        hlMsg('Favorito adicionado como ponto ' + hlState.items.length + '.', true);
+      } else if(d){
+        favs.splice(parseInt(d.dataset.i, 10), 1);
+        lsSet(HL_FAV_KEY, favs);
+        renderFavs(); renderItems();
+      }
+    });
+
+    function renderDrafts(){
+      var drafts = lsGet(HL_DRAFTS_KEY);
+      document.getElementById('hlDraftsCard').querySelector('summary').textContent = 'Rascunhos salvos' + (drafts.length ? ' (' + drafts.length + ')' : '');
+      document.getElementById('hlDraftList').innerHTML = drafts.length ? drafts.map(function(d, i){
+        var n = (d.state.items || []).filter(function(x){ return (x.desc||'').trim(); }).length;
+        return '<div class="hl-saved"><div class="hl-saved-text"><b>'+escapeHtml(d.nome)+'</b><span>'+n+' ponto(s), salvo em '+escapeHtml(d.em)+'</span></div>' +
+          '<div class="hl-saved-actions"><button type="button" class="ghost-btn hlDraftOpen" data-i="'+i+'" style="margin-left:0;">Abrir</button>' +
+          '<button type="button" class="hl-rm hlDraftDel" data-i="'+i+'" title="Apagar rascunho" aria-label="Apagar rascunho">×</button></div></div>';
+      }).join('') : '<p class="empty-note" style="margin:0;">Nenhum rascunho salvo.</p>';
+    }
+    document.getElementById('hlSaveDraftBtn').addEventListener('click', function(){
+      var sugest = 'Highlights ' + ddmm(hlState.ini) + ' a ' + ddmm(hlState.fim);
+      var nome = window.prompt('Nome do rascunho:', sugest);
+      if(nome === null) return;
+      nome = nome.trim() || sugest;
+      var drafts = lsGet(HL_DRAFTS_KEY);
+      var agora = new Date();
+      var em = pad2(agora.getDate())+'/'+pad2(agora.getMonth()+1)+' '+pad2(agora.getHours())+':'+pad2(agora.getMinutes());
+      var copia = JSON.parse(JSON.stringify(hlState));
+      var idx = -1; drafts.forEach(function(d, i){ if(d.nome === nome) idx = i; });
+      if(idx >= 0){ if(!window.confirm('Já existe um rascunho com esse nome. Substituir?')) return; drafts[idx] = { nome:nome, em:em, state:copia }; }
+      else drafts.unshift({ nome:nome, em:em, state:copia });
+      if(lsSet(HL_DRAFTS_KEY, drafts)){ hlMsg('Rascunho "' + nome + '" salvo.', true); }
+      else { hlMsg('Não foi possível salvar neste aparelho.', false); }
+      document.getElementById('hlDraftsCard').open = true;
+      renderDrafts();
+    });
+    document.getElementById('hlDraftList').addEventListener('click', function(e){
+      var drafts = lsGet(HL_DRAFTS_KEY);
+      var o = e.target.closest('.hlDraftOpen'), d = e.target.closest('.hlDraftDel');
+      if(o){
+        var dr = drafts[parseInt(o.dataset.i, 10)]; if(!dr) return;
+        if(!window.confirm('Abrir "' + dr.nome + '"? O que está na tela agora será substituído (salve antes, se quiser guardar).')) return;
+        hlState = JSON.parse(JSON.stringify(dr.state));
+        hlState.items.forEach(function(it){ var n = parseInt(String(it.id).replace(/\D/g,''),10); if(n > hlSeq) hlSeq = n; });
+        if(!hlState.items.length) hlState.items.push(newItem());
+        document.getElementById('hlIni').value = hlState.ini || '';
+        document.getElementById('hlFim').value = hlState.fim || '';
+        renderItems();
+        hlMsg('Rascunho "' + dr.nome + '" aberto.', true);
+        window.scrollTo({ top:0, behavior:'smooth' });
+      } else if(d){
+        var dr2 = drafts[parseInt(d.dataset.i, 10)]; if(!dr2) return;
+        if(!window.confirm('Apagar o rascunho "' + dr2.nome + '"?')) return;
+        drafts.splice(parseInt(d.dataset.i, 10), 1);
+        lsSet(HL_DRAFTS_KEY, drafts);
+        renderDrafts();
+      }
+    });
+
     load();
+    renderFavs();
+    renderDrafts();
     if(!hlState.ini || !hlState.fim){ var p = semana(0); hlState.ini = p[0]; hlState.fim = p[1]; }
     document.getElementById('hlIni').value = hlState.ini;
     document.getElementById('hlFim').value = hlState.fim;
@@ -3791,7 +3924,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261019221211';
+  var APP_BUILD = '20261019221431';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
