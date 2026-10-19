@@ -1992,7 +1992,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       { id:'pos', label:'🟢 Positivo', titulo:'🟢 Positivos' },
       { id:'ajuda', label:'🔵 Pedido de ajuda', titulo:'🔵 Pedidos de Ajuda' }
     ];
-    var HL_PROCESSOS = ['Transporte SLS EFC', 'Manutenção Externa de Próprios'];
+    var HL_PROCESSOS = ['Transporte Coletivo', 'Leves', 'Manutenção Externa de Próprios', 'Mobilidade', 'Lavador de Veículos', 'Cartão de Abastecimento', 'Sistemas Embarcados'];
     var HL_KEY = 'inspecoes_highlights_rascunho';
     var hlState = { ini:'', fim:'', items:[] };
     var hlSeq = 0;
@@ -3791,7 +3791,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261019220347';
+  var APP_BUILD = '20261019221211';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
