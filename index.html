@@ -2025,10 +2025,24 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       HL_TIPOS.forEach(function(t){
         out += '\n*' + t.titulo + ':*\n';
         var its = hlState.items.filter(function(it){ return it.tipo === t.id && (it.desc.trim() || procName(it)); });
-        its.forEach(function(it, i){
+        // agrupa por processo (na ordem em que cada processo aparece pela 1ª vez), sem repetir o nome
+        var ordem = [], grupos = {};
+        its.forEach(function(it){
           var p = procName(it);
-          out += (p ? '*' + p + '*: ' : '') + it.desc.trim() + '\n';
-          if(i < its.length - 1) out += '\n';
+          var k = p.toLowerCase();
+          if(!grupos[k]){ grupos[k] = { nome:p, descs:[] }; ordem.push(k); }
+          if(it.desc.trim()) grupos[k].descs.push(it.desc.trim());
+        });
+        ordem.sort(function(a, b){ return (a === '' ? 1 : 0) - (b === '' ? 1 : 0); }); // sem processo vai pro fim
+        ordem.forEach(function(k, i){
+          var g = grupos[k];
+          var head = g.nome ? '*' + g.nome + '*:' : '';
+          if(g.descs.length <= 1){
+            out += (head ? head + ' ' : '') + (g.descs[0] || '') + '\n';
+          } else {
+            out += (head ? head + '\n' : '') + g.descs.map(function(d){ return '• ' + d; }).join('\n') + '\n';
+          }
+          if(i < ordem.length - 1) out += '\n';
         });
       });
       return out.replace(/\n+$/, '');
@@ -3777,7 +3791,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261019212754';
+  var APP_BUILD = '20261019220347';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
