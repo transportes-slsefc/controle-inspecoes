@@ -431,6 +431,17 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 .hl-saved-text b { display:block; font-weight:600; }
 .hl-saved-text span { color:var(--ink-soft); font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .hl-saved-actions { display:flex; gap:4px; flex:none; }
+
+.hl-week { display:grid; grid-template-columns:44px 1fr 44px; align-items:center; gap:8px; }
+.hl-nav { height:44px; border:1px solid var(--border); background:var(--bg); color:var(--ink); border-radius:10px; font-size:22px; cursor:pointer; }
+.hl-nav:hover { border-color:var(--accent); }
+.hl-week-label { text-align:center; }
+.hl-week-label span { display:block; font-size:12.5px; color:var(--ink-soft); }
+.hl-week-label b { font-size:18px; }
+.hl-week-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.hl-sync { font-size:12.5px; color:var(--ink-soft); }
+.hl-sync.ok { color:var(--ok); }
+.hl-sync.err { color:var(--danger); }
 </style>
 </head>
 <body class="gate-locked">
@@ -782,14 +793,17 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   <!-- ===== HIGHLIGHTS ===== -->
   <section class="view" id="view-highlights">
     <div class="card">
-      <h2 class="sec-title" style="margin-top:0;">Período</h2>
-      <div class="hl-period">
-        <div><label for="hlIni">De</label><input type="date" id="hlIni"></div>
-        <div><label for="hlFim">Até</label><input type="date" id="hlFim"></div>
+      <div class="hl-week">
+        <button type="button" class="hl-nav" id="hlPrev" aria-label="Semana anterior">‹</button>
+        <div class="hl-week-label">
+          <span>Rascunho da equipe</span>
+          <b id="hlWeekLabel"></b>
+        </div>
+        <button type="button" class="hl-nav" id="hlNext" aria-label="Próxima semana">›</button>
       </div>
-      <div class="chip-row" style="margin-top:10px;">
+      <div class="hl-week-foot">
         <button type="button" class="chip" id="hlSemanaAtual">Semana atual</button>
-        <button type="button" class="chip" id="hlSemanaPassada">Semana passada</button>
+        <span class="hl-sync" id="hlSync"></span>
       </div>
     </div>
 
@@ -800,7 +814,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
     </div>
     <div class="card hl-fav-panel" id="hlFavPanel" style="display:none; margin-top:12px;">
       <h2 class="sec-title" style="margin-top:0;">Pontos favoritos</h2>
-      <p class="hint" style="margin:0 0 8px;">Toque em ☆ num ponto pra guardar aqui. Depois é só adicionar de novo num próximo highlight.</p>
+      <p class="hint" style="margin:0 0 8px;">Toque em ☆ num ponto pra guardar aqui. Os favoritos ficam só neste aparelho.</p>
       <div id="hlFavList"></div>
     </div>
 
@@ -815,12 +829,11 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       <pre id="hlPreview"></pre>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px;">
-      <button type="button" class="ghost-btn" id="hlSaveDraftBtn" style="margin-left:0;">Salvar rascunho</button>
-      <button type="button" class="ghost-btn" id="hlClearBtn" style="margin-left:0;">Limpar tudo</button>
+      <button type="button" class="ghost-btn" id="hlClearBtn" style="margin-left:0;">Apagar pontos da semana</button>
       <span class="form-msg" id="hlMsg"></span>
     </div>
     <details class="card" id="hlDraftsCard" style="margin-top:16px;">
-      <summary>Rascunhos salvos</summary>
+      <summary>Outras semanas</summary>
       <div id="hlDraftList"></div>
     </details>
   </section>
@@ -2009,7 +2022,22 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   });
 
 
-  // ---------- GERADOR DE HIGHLIGHTS ----------
+
+  // Rascunho de highlights compartilhado (um por semana), gravado no Supabase pelo código de acesso.
+  var hlApi = {
+    ready: function(){ return !!readCodeVerified; },
+    get: function(ini){
+      return supabase.rpc('hl_get', { code: readCodeVerified, ini: ini }).then(function(r){ if(r.error) throw r.error; return r.data; });
+    },
+    push: function(ini, fim, items){
+      return supabase.rpc('hl_merge', { code: readCodeVerified, ini: ini, fim: fim, items: items }).then(function(r){ if(r.error) throw r.error; return r.data; });
+    },
+    list: function(){
+      return supabase.rpc('hl_list', { code: readCodeVerified }).then(function(r){ if(r.error) throw r.error; return r.data || []; });
+    }
+  };
+
+  // ---------- GERADOR DE HIGHLIGHTS (rascunho da equipe, um por semana) ----------
   (function(){
     var HL_TIPOS = [
       { id:'neg', label:'🔴 Negativo', titulo:'🔴 Negativos' },
@@ -2018,61 +2046,58 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       { id:'ajuda', label:'🔵 Pedido de ajuda', titulo:'🔵 Pedidos de Ajuda' }
     ];
     var HL_PROCESSOS = ['Transporte Coletivo', 'Leves', 'Manutenção Externa de Próprios', 'Mobilidade', 'Lavador de Veículos', 'Cartão de Abastecimento', 'Sistemas Embarcados'];
-    var HL_KEY = 'inspecoes_highlights_rascunho';
     var HL_FAV_KEY = 'inspecoes_highlights_favoritos';
-    var HL_DRAFTS_KEY = 'inspecoes_highlights_rascunhos_salvos';
-    function lsGet(k){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : []; }catch(e){ return []; } }
+    var OLD_KEY = 'inspecoes_highlights_rascunho';
+
+    function lsGet(k, def){ try{ var r = localStorage.getItem(k); return r ? JSON.parse(r) : def; }catch(e){ return def; } }
     function lsSet(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } }
-    function favKey(f){ return [f.tipo, f.proc, (f.procOutro||'').trim(), (f.desc||'').trim()].join('|'); }
-    function tipoLabel(id){ var t = HL_TIPOS.filter(function(x){ return x.id === id; })[0]; return t ? t.label : 'Sem tipo'; }
-    var hlState = { ini:'', fim:'', items:[] };
-    var hlSeq = 0;
+    function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
     function ymd(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
-    function semana(offsetWeeks){
-      var d = new Date(); d.setHours(12,0,0,0);
-      var dow = (d.getDay() + 6) % 7; // segunda = 0
-      d.setDate(d.getDate() - dow + offsetWeeks*7);
-      var fim = new Date(d); fim.setDate(d.getDate() + 6);
-      return [ymd(d), ymd(fim)];
-    }
+    function parseYmd(s){ return new Date(parseInt(s.slice(0,4),10), parseInt(s.slice(5,7),10)-1, parseInt(s.slice(8,10),10), 12); }
+    function addDays(s, n){ var d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); }
+    function mondayOf(d){ d = new Date(d); d.setHours(12,0,0,0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); }
     function ddmm(s){ return s ? s.slice(8,10)+'/'+s.slice(5,7) : '??/??'; }
-    function save(){ try{ localStorage.setItem(HL_KEY, JSON.stringify(hlState)); }catch(e){} }
-    function load(){
-      try{
-        var raw = localStorage.getItem(HL_KEY);
-        if(raw){ var o = JSON.parse(raw); if(o && o.items){ hlState = o; } }
-      }catch(e){}
-      hlState.items.forEach(function(it){ var n = parseInt(String(it.id).replace(/\D/g,''),10); if(n > hlSeq) hlSeq = n; });
+    function hhmm(){ var d = new Date(); return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+
+    var week = { ini:'', fim:'' };
+    var itemsById = {};
+    var pushTimer = null, pushing = false, pulling = false, dirty = false;
+
+    function cacheKey(){ return 'inspecoes_hl_semana_' + week.ini; }
+    function saveLocal(){ lsSet(cacheKey(), itemsById); }
+    function newId(){ return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+    function newItem(){ var t = Date.now(); return { id:newId(), tipo:'', proc:'', procOutro:'', desc:'', ord:t, upd:t }; }
+    function hasContent(it){ return !!(it.tipo || it.proc || (it.procOutro||'').trim() || (it.desc||'').trim()); }
+    function liveItems(){
+      return Object.keys(itemsById).map(function(k){ return itemsById[k]; })
+        .filter(function(i){ return !i.del; })
+        .sort(function(a, b){ return (a.ord||0) - (b.ord||0); });
     }
-    function newItem(){ hlSeq++; return { id:'hl'+hlSeq, tipo:'', proc:'', procOutro:'', desc:'' }; }
-    function procName(it){ return it.proc === '__outro__' ? (it.procOutro||'').trim() : it.proc; }
+    function procName(it){ return it.proc === '__outro__' ? (it.procOutro||'').trim() : (it.proc||''); }
+    function favKey(f){ return [f.tipo, f.proc, (f.procOutro||'').trim(), (f.desc||'').trim()].join('|'); }
+    function tipoLabel(id){ var t = HL_TIPOS.filter(function(x){ return x.id === id; })[0]; return t ? t.label : 'Sem tipo'; }
+    function hlMsg(t, ok){ var m = document.getElementById('hlMsg'); m.textContent = t; m.className = 'form-msg ' + (ok ? 'ok' : 'err'); }
+    function setSync(t, cls){ var s = document.getElementById('hlSync'); s.textContent = t || ''; s.className = 'hl-sync' + (cls ? ' ' + cls : ''); }
 
     function buildText(){
-      var dias = 0;
-      if(hlState.ini && hlState.fim){ dias = Math.round((new Date(hlState.fim) - new Date(hlState.ini)) / 86400000) + 1; }
-      var rotulo = (dias === 7 || !hlState.ini || !hlState.fim) ? 'Semana' : 'Período';
-      var out = '*Highlights | ' + rotulo + ' ' + ddmm(hlState.ini) + ' a ' + ddmm(hlState.fim) + ':*\n\n';
+      var out = '*Highlights | Semana ' + ddmm(week.ini) + ' a ' + ddmm(week.fim) + ':*\n';
+      var its = liveItems();
       HL_TIPOS.forEach(function(t){
         out += '\n*' + t.titulo + ':*\n';
-        var its = hlState.items.filter(function(it){ return it.tipo === t.id && (it.desc.trim() || procName(it)); });
-        // agrupa por processo (na ordem em que cada processo aparece pela 1ª vez), sem repetir o nome
+        var doTipo = its.filter(function(it){ return it.tipo === t.id && ((it.desc||'').trim() || procName(it)); });
         var ordem = [], grupos = {};
-        its.forEach(function(it){
-          var p = procName(it);
-          var k = p.toLowerCase();
+        doTipo.forEach(function(it){
+          var p = procName(it), k = p.toLowerCase();
           if(!grupos[k]){ grupos[k] = { nome:p, descs:[] }; ordem.push(k); }
-          if(it.desc.trim()) grupos[k].descs.push(it.desc.trim());
+          if((it.desc||'').trim()) grupos[k].descs.push(it.desc.trim());
         });
-        ordem.sort(function(a, b){ return (a === '' ? 1 : 0) - (b === '' ? 1 : 0); }); // sem processo vai pro fim
+        ordem.sort(function(a, b){ return (a === '' ? 1 : 0) - (b === '' ? 1 : 0); });
         ordem.forEach(function(k, i){
           var g = grupos[k];
           var head = g.nome ? '*' + g.nome + '*:' : '';
-          if(g.descs.length <= 1){
-            out += (head ? head + ' ' : '') + (g.descs[0] || '') + '\n';
-          } else {
-            out += (head ? head + '\n' : '') + g.descs.map(function(d){ return '• ' + d; }).join('\n') + '\n';
-          }
+          if(g.descs.length <= 1) out += (head ? head + ' ' : '') + (g.descs[0] || '') + '\n';
+          else out += (head ? head + '\n' : '') + g.descs.map(function(d){ return '• ' + d; }).join('\n') + '\n';
           if(i < ordem.length - 1) out += '\n';
         });
       });
@@ -2083,50 +2108,137 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       var text = buildText();
       document.getElementById('hlPreview').textContent = text;
       document.getElementById('hlWaBtn').href = 'https://wa.me/?text=' + encodeURIComponent(text);
-      save();
     }
 
+    var host = document.getElementById('hlItems');
     function renderItems(){
-      var host = document.getElementById('hlItems');
-      host.innerHTML = hlState.items.map(function(it, idx){
+      // guarda o campo em foco pra não perder o cursor quando chega atualização de outra pessoa
+      var ae = document.activeElement, fid = null, fcls = null, s0 = null, s1 = null;
+      if(ae && host.contains(ae)){
+        var c = ae.closest('.hl-item'); fid = c && c.dataset.id;
+        fcls = ['hl-desc','hl-proc-outro','hl-proc'].filter(function(k){ return ae.classList.contains(k); })[0] || null;
+        try{ s0 = ae.selectionStart; s1 = ae.selectionEnd; }catch(e){}
+      }
+      var its = liveItems();
+      if(!its.length){ var b = newItem(); itemsById[b.id] = b; its = [b]; }
+      var favs = lsGet(HL_FAV_KEY, []);
+      host.innerHTML = its.map(function(it, idx){
         var tipos = HL_TIPOS.map(function(t){
           return '<button type="button" class="hl-type'+(it.tipo===t.id?' on':'')+'" data-tipo="'+t.id+'">'+t.label+'</button>';
         }).join('');
         var procOpts = '<option value="">Escolha o processo</option>' + HL_PROCESSOS.map(function(p){
           return '<option value="'+escapeHtml(p)+'"'+(it.proc===p?' selected':'')+'>'+escapeHtml(p)+'</option>';
         }).join('') + '<option value="__outro__"'+(it.proc==='__outro__'?' selected':'')+'>Outro (digitar)</option>';
+        if(it.proc && it.proc !== '__outro__' && HL_PROCESSOS.indexOf(it.proc) === -1){
+          procOpts += '<option value="'+escapeHtml(it.proc)+'" selected>'+escapeHtml(it.proc)+'</option>';
+        }
+        var fav = favs.some(function(f){ return favKey(f) === favKey(it); });
         return '<div class="hl-item" data-id="'+it.id+'">' +
           '<div class="hl-item-head"><span>Ponto '+(idx+1)+'</span><div class="hl-head-actions">' +
-          (function(){ var on = lsGet(HL_FAV_KEY).some(function(f){ return favKey(f) === favKey(it); }); return '<button type="button" class="hl-star'+(on?' on':'')+'" title="Guardar nos favoritos">'+(on?'★ Favorito':'☆ Favoritar')+'</button>'; })() +
-          (hlState.items.length > 1 ? '<button type="button" class="hl-rm" title="Remover ponto" aria-label="Remover ponto">×</button>' : '') + '</div></div>' +
+            '<button type="button" class="hl-star'+(fav?' on':'')+'" title="Guardar nos favoritos">'+(fav?'★ Favorito':'☆ Favoritar')+'</button>' +
+            (its.length > 1 || hasContent(it) ? '<button type="button" class="hl-rm" title="Remover ponto" aria-label="Remover ponto">×</button>' : '') +
+          '</div></div>' +
           '<div class="hl-types">'+tipos+'</div>' +
           '<label>Processo</label><select class="hl-proc">'+procOpts+'</select>' +
           '<input type="text" class="hl-proc-outro" placeholder="Nome do processo" value="'+escapeHtml(it.procOutro||'')+'" style="margin-top:8px; display:'+(it.proc==='__outro__'?'block':'none')+';">' +
           '<label>O que aconteceu</label><textarea class="hl-desc" placeholder="Descreva o ponto">'+escapeHtml(it.desc||'')+'</textarea>' +
         '</div>';
       }).join('');
+      if(fid && fcls){
+        var el = host.querySelector('.hl-item[data-id="'+fid+'"] .'+fcls);
+        if(el){ el.focus(); try{ if(s0 != null) el.setSelectionRange(s0, s1); }catch(e){} }
+      }
       renderPreview();
     }
 
-    function itemOf(el){
-      var card = el.closest('.hl-item');
-      if(!card) return null;
-      return hlState.items.filter(function(x){ return x.id === card.dataset.id; })[0] || null;
+    function renderWeek(){
+      document.getElementById('hlWeekLabel').textContent = 'Semana ' + ddmm(week.ini) + ' a ' + ddmm(week.fim);
     }
 
-    var host = document.getElementById('hlItems');
+    // ---- sincronização ----
+    function touch(it){ it.upd = Date.now(); scheduleSave(); }
+    function scheduleSave(){
+      dirty = true;
+      saveLocal();
+      setSync('Salvando…');
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(push, 1200);
+    }
+    function payload(){
+      var out = {};
+      Object.keys(itemsById).forEach(function(k){ var it = itemsById[k]; if(it.del || hasContent(it)) out[k] = it; });
+      return out;
+    }
+    function push(){
+      if(!hlApi.ready()){ setSync('Salvo só neste aparelho por enquanto', 'err'); return; }
+      if(pushing){ clearTimeout(pushTimer); pushTimer = setTimeout(push, 800); return; }
+      pushing = true; dirty = false;
+      var w = week.ini;
+      hlApi.push(week.ini, week.fim, payload()).then(function(remote){
+        pushing = false;
+        if(w !== week.ini) return;
+        if(remote && remote.itens) applyRemote(remote.itens);
+        setSync('Salvo para a equipe às ' + hhmm(), 'ok');
+      }).catch(function(){
+        pushing = false; dirty = true;
+        setSync('Sem conexão: salvo só neste aparelho. Tentando de novo…', 'err');
+        clearTimeout(pushTimer); pushTimer = setTimeout(push, 15000);
+      });
+    }
+    function applyRemote(map){
+      var changed = false;
+      Object.keys(map || {}).forEach(function(id){
+        var r = map[id], l = itemsById[id];
+        if(!l || (r.upd || 0) > (l.upd || 0)){ itemsById[id] = r; changed = true; }
+      });
+      if(changed){ saveLocal(); renderItems(); }
+      return changed;
+    }
+    function pull(){
+      if(!hlApi.ready() || pulling || pushing) return;
+      pulling = true;
+      var w = week.ini;
+      hlApi.get(w).then(function(remote){
+        pulling = false;
+        if(w !== week.ini) return;
+        if(remote && remote.itens) applyRemote(remote.itens);
+        // algo editado aqui que o banco ainda não tem? manda agora
+        var local = payload(), rem = (remote && remote.itens) || {};
+        var pend = Object.keys(local).some(function(k){ return !rem[k] || (local[k].upd || 0) > (rem[k].upd || 0); });
+        if(pend || dirty) push();
+        else if(remote) setSync('Em dia com a equipe (' + hhmm() + ')', 'ok');
+        else setSync('Ninguém começou esta semana ainda');
+      }).catch(function(){ pulling = false; });
+    }
+    function viewActive(){ var v = document.getElementById('view-highlights'); return v && v.classList.contains('active'); }
+
+    function loadWeek(ini){
+      if(dirty && week.ini){ clearTimeout(pushTimer); push(); }
+      week.ini = ini; week.fim = addDays(ini, 6);
+      itemsById = lsGet(cacheKey(), {}) || {};
+      renderWeek();
+      renderItems();
+      setSync(hlApi.ready() ? 'Carregando…' : '');
+      pull();
+    }
+
+    // ---- eventos dos pontos ----
+    function itemOf(el){
+      var card = el.closest('.hl-item');
+      return card ? (itemsById[card.dataset.id] || null) : null;
+    }
     host.addEventListener('click', function(e){
       var it = itemOf(e.target);
       if(!it) return;
       var tb = e.target.closest('.hl-type');
-      if(tb){ it.tipo = (it.tipo === tb.dataset.tipo) ? '' : tb.dataset.tipo; renderItems(); return; }
+      if(tb){ it.tipo = (it.tipo === tb.dataset.tipo) ? '' : tb.dataset.tipo; touch(it); renderItems(); return; }
       if(e.target.closest('.hl-star')){
-        var favs = lsGet(HL_FAV_KEY);
+        var favs = lsGet(HL_FAV_KEY, []);
         var k = favKey(it);
         var exists = favs.some(function(f){ return favKey(f) === k; });
-        if(exists){ favs = favs.filter(function(f){ return favKey(f) !== k; }); }
+        if(exists) favs = favs.filter(function(f){ return favKey(f) !== k; });
         else {
-          if(!it.desc.trim() && !procName(it)){ hlMsg('Preencha o ponto antes de favoritar.', false); return; }
+          if(!hasContent(it)){ hlMsg('Preencha o ponto antes de favoritar.', false); return; }
           favs.push({ tipo:it.tipo, proc:it.proc, procOutro:it.procOutro, desc:it.desc });
         }
         lsSet(HL_FAV_KEY, favs);
@@ -2135,71 +2247,57 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
         return;
       }
       if(e.target.closest('.hl-rm')){
-        hlState.items = hlState.items.filter(function(x){ return x !== it; });
-        renderItems();
+        if(hasContent(it) && !window.confirm('Remover este ponto? Ele sai do rascunho de todo mundo.')) return;
+        it.del = true; touch(it); renderItems();
       }
     });
     host.addEventListener('change', function(e){
       var it = itemOf(e.target);
-      if(!it) return;
-      if(e.target.classList.contains('hl-proc')){
-        it.proc = e.target.value;
-        var outro = e.target.closest('.hl-item').querySelector('.hl-proc-outro');
-        outro.style.display = it.proc === '__outro__' ? 'block' : 'none';
-        if(it.proc === '__outro__') outro.focus();
-        renderPreview();
-      }
+      if(!it || !e.target.classList.contains('hl-proc')) return;
+      it.proc = e.target.value;
+      var outro = e.target.closest('.hl-item').querySelector('.hl-proc-outro');
+      outro.style.display = it.proc === '__outro__' ? 'block' : 'none';
+      if(it.proc === '__outro__') outro.focus();
+      touch(it); renderPreview();
     });
     host.addEventListener('input', function(e){
       var it = itemOf(e.target);
       if(!it) return;
       if(e.target.classList.contains('hl-desc')) it.desc = e.target.value;
-      if(e.target.classList.contains('hl-proc-outro')) it.procOutro = e.target.value;
-      renderPreview();
+      else if(e.target.classList.contains('hl-proc-outro')) it.procOutro = e.target.value;
+      else return;
+      touch(it); renderPreview();
     });
 
     document.getElementById('hlAddBtn').addEventListener('click', function(){
-      hlState.items.push(newItem());
+      var it = newItem(); itemsById[it.id] = it;
       renderItems();
       var cards = host.querySelectorAll('.hl-item');
       if(cards.length) cards[cards.length-1].scrollIntoView({ behavior:'smooth', block:'center' });
     });
-    function setPeriod(p){
-      hlState.ini = p[0]; hlState.fim = p[1];
-      document.getElementById('hlIni').value = p[0];
-      document.getElementById('hlFim').value = p[1];
-      renderPreview();
-    }
-    document.getElementById('hlSemanaAtual').addEventListener('click', function(){ setPeriod(semana(0)); });
-    document.getElementById('hlSemanaPassada').addEventListener('click', function(){ setPeriod(semana(-1)); });
-    document.getElementById('hlIni').addEventListener('change', function(){ hlState.ini = this.value; renderPreview(); });
-    document.getElementById('hlFim').addEventListener('change', function(){ hlState.fim = this.value; renderPreview(); });
+    document.getElementById('hlPrev').addEventListener('click', function(){ loadWeek(addDays(week.ini, -7)); });
+    document.getElementById('hlNext').addEventListener('click', function(){ loadWeek(addDays(week.ini, 7)); });
+    document.getElementById('hlSemanaAtual').addEventListener('click', function(){ loadWeek(mondayOf(new Date())); });
 
     document.getElementById('hlCopyBtn').addEventListener('click', function(){
-      var msg = document.getElementById('hlMsg');
       var text = buildText();
       if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text).then(function(){
-          msg.textContent = 'Texto copiado.'; msg.className = 'form-msg ok';
-        }).catch(function(){
-          msg.textContent = 'Não foi possível copiar. Selecione o texto da prévia.'; msg.className = 'form-msg err';
-        });
-      } else {
-        msg.textContent = 'Não foi possível copiar. Selecione o texto da prévia.'; msg.className = 'form-msg err';
-      }
+        navigator.clipboard.writeText(text).then(function(){ hlMsg('Texto copiado.', true); })
+          .catch(function(){ hlMsg('Não foi possível copiar. Selecione o texto da prévia.', false); });
+      } else hlMsg('Não foi possível copiar. Selecione o texto da prévia.', false);
     });
     document.getElementById('hlClearBtn').addEventListener('click', function(){
-      if(!window.confirm('Apagar todos os pontos deste highlight?')) return;
-      hlState.items = [newItem()];
-      setPeriod(semana(0));
-      renderItems();
-      var msg = document.getElementById('hlMsg'); msg.textContent = 'Highlight limpo.'; msg.className = 'form-msg ok';
+      if(!liveItems().some(hasContent)) return;
+      if(!window.confirm('Apagar todos os pontos da Semana ' + ddmm(week.ini) + ' a ' + ddmm(week.fim) + '? Isso apaga para toda a equipe.')) return;
+      var t = Date.now();
+      Object.keys(itemsById).forEach(function(k){ var it = itemsById[k]; if(!it.del){ it.del = true; it.upd = t; } });
+      scheduleSave(); renderItems();
+      hlMsg('Pontos da semana apagados.', true);
     });
 
-    function hlMsg(t, ok){ var m = document.getElementById('hlMsg'); m.textContent = t; m.className = 'form-msg ' + (ok ? 'ok' : 'err'); }
-
+    // ---- favoritos (por aparelho) ----
     function renderFavs(){
-      var favs = lsGet(HL_FAV_KEY);
+      var favs = lsGet(HL_FAV_KEY, []);
       document.getElementById('hlFavToggle').textContent = '★ Favoritos' + (favs.length ? ' (' + favs.length + ')' : '');
       document.getElementById('hlFavList').innerHTML = favs.length ? favs.map(function(f, i){
         var p = f.proc === '__outro__' ? (f.procOutro||'') : f.proc;
@@ -2214,16 +2312,16 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       renderFavs();
     });
     document.getElementById('hlFavList').addEventListener('click', function(e){
-      var favs = lsGet(HL_FAV_KEY);
+      var favs = lsGet(HL_FAV_KEY, []);
       var u = e.target.closest('.hlFavUse'), d = e.target.closest('.hlFavDel');
       if(u){
         var f = favs[parseInt(u.dataset.i, 10)]; if(!f) return;
-        var it = newItem(); it.tipo = f.tipo; it.proc = f.proc; it.procOutro = f.procOutro || ''; it.desc = f.desc || '';
-        // se o único ponto da tela está vazio, usa ele em vez de criar outro
-        if(hlState.items.length === 1 && !hlState.items[0].tipo && !hlState.items[0].proc && !hlState.items[0].desc.trim()) hlState.items = [it];
-        else hlState.items.push(it);
-        renderItems();
-        hlMsg('Favorito adicionado como ponto ' + hlState.items.length + '.', true);
+        var vazios = liveItems().filter(function(x){ return !hasContent(x); });
+        var it = vazios.length ? vazios[0] : newItem();
+        it.tipo = f.tipo; it.proc = f.proc; it.procOutro = f.procOutro || ''; it.desc = f.desc || '';
+        itemsById[it.id] = it;
+        touch(it); renderItems();
+        hlMsg('Favorito adicionado.', true);
       } else if(d){
         favs.splice(parseInt(d.dataset.i, 10), 1);
         lsSet(HL_FAV_KEY, favs);
@@ -2231,64 +2329,58 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
       }
     });
 
-    function renderDrafts(){
-      var drafts = lsGet(HL_DRAFTS_KEY);
-      document.getElementById('hlDraftsCard').querySelector('summary').textContent = 'Rascunhos salvos' + (drafts.length ? ' (' + drafts.length + ')' : '');
-      document.getElementById('hlDraftList').innerHTML = drafts.length ? drafts.map(function(d, i){
-        var n = (d.state.items || []).filter(function(x){ return (x.desc||'').trim(); }).length;
-        return '<div class="hl-saved"><div class="hl-saved-text"><b>'+escapeHtml(d.nome)+'</b><span>'+n+' ponto(s), salvo em '+escapeHtml(d.em)+'</span></div>' +
-          '<div class="hl-saved-actions"><button type="button" class="ghost-btn hlDraftOpen" data-i="'+i+'" style="margin-left:0;">Abrir</button>' +
-          '<button type="button" class="hl-rm hlDraftDel" data-i="'+i+'" title="Apagar rascunho" aria-label="Apagar rascunho">×</button></div></div>';
-      }).join('') : '<p class="empty-note" style="margin:0;">Nenhum rascunho salvo.</p>';
+    // ---- outras semanas ----
+    function renderWeekList(){
+      var box = document.getElementById('hlDraftList');
+      if(!hlApi.ready()){ box.innerHTML = '<p class="empty-note" style="margin:0;">Disponível depois de entrar com o código de acesso.</p>'; return; }
+      box.innerHTML = '<p class="hint" style="margin:0;">Carregando…</p>';
+      hlApi.list().then(function(rows){
+        rows = rows.filter(function(r){ return r.pontos > 0 || r.ini === week.ini; });
+        box.innerHTML = rows.length ? rows.map(function(r){
+          var ini = String(r.ini).slice(0,10), fim = r.fim ? String(r.fim).slice(0,10) : addDays(ini, 6);
+          return '<div class="hl-saved"><div class="hl-saved-text"><b>Semana '+ddmm(ini)+' a '+ddmm(fim)+(ini === week.ini ? ' (aberta)' : '')+'</b><span>'+r.pontos+' ponto(s)</span></div>' +
+            '<div class="hl-saved-actions">'+(ini === week.ini ? '' : '<button type="button" class="ghost-btn hlWeekOpen" data-ini="'+ini+'" style="margin-left:0;">Abrir</button>')+'</div></div>';
+        }).join('') : '<p class="empty-note" style="margin:0;">Nenhuma semana com pontos ainda.</p>';
+      }).catch(function(){ box.innerHTML = '<p class="empty-note" style="margin:0;">Não foi possível carregar agora.</p>'; });
     }
-    document.getElementById('hlSaveDraftBtn').addEventListener('click', function(){
-      var sugest = 'Highlights ' + ddmm(hlState.ini) + ' a ' + ddmm(hlState.fim);
-      var nome = window.prompt('Nome do rascunho:', sugest);
-      if(nome === null) return;
-      nome = nome.trim() || sugest;
-      var drafts = lsGet(HL_DRAFTS_KEY);
-      var agora = new Date();
-      var em = pad2(agora.getDate())+'/'+pad2(agora.getMonth()+1)+' '+pad2(agora.getHours())+':'+pad2(agora.getMinutes());
-      var copia = JSON.parse(JSON.stringify(hlState));
-      var idx = -1; drafts.forEach(function(d, i){ if(d.nome === nome) idx = i; });
-      if(idx >= 0){ if(!window.confirm('Já existe um rascunho com esse nome. Substituir?')) return; drafts[idx] = { nome:nome, em:em, state:copia }; }
-      else drafts.unshift({ nome:nome, em:em, state:copia });
-      if(lsSet(HL_DRAFTS_KEY, drafts)){ hlMsg('Rascunho "' + nome + '" salvo.', true); }
-      else { hlMsg('Não foi possível salvar neste aparelho.', false); }
-      document.getElementById('hlDraftsCard').open = true;
-      renderDrafts();
-    });
+    document.getElementById('hlDraftsCard').addEventListener('toggle', function(){ if(this.open) renderWeekList(); });
     document.getElementById('hlDraftList').addEventListener('click', function(e){
-      var drafts = lsGet(HL_DRAFTS_KEY);
-      var o = e.target.closest('.hlDraftOpen'), d = e.target.closest('.hlDraftDel');
-      if(o){
-        var dr = drafts[parseInt(o.dataset.i, 10)]; if(!dr) return;
-        if(!window.confirm('Abrir "' + dr.nome + '"? O que está na tela agora será substituído (salve antes, se quiser guardar).')) return;
-        hlState = JSON.parse(JSON.stringify(dr.state));
-        hlState.items.forEach(function(it){ var n = parseInt(String(it.id).replace(/\D/g,''),10); if(n > hlSeq) hlSeq = n; });
-        if(!hlState.items.length) hlState.items.push(newItem());
-        document.getElementById('hlIni').value = hlState.ini || '';
-        document.getElementById('hlFim').value = hlState.fim || '';
-        renderItems();
-        hlMsg('Rascunho "' + dr.nome + '" aberto.', true);
-        window.scrollTo({ top:0, behavior:'smooth' });
-      } else if(d){
-        var dr2 = drafts[parseInt(d.dataset.i, 10)]; if(!dr2) return;
-        if(!window.confirm('Apagar o rascunho "' + dr2.nome + '"?')) return;
-        drafts.splice(parseInt(d.dataset.i, 10), 1);
-        lsSet(HL_DRAFTS_KEY, drafts);
-        renderDrafts();
-      }
+      var o = e.target.closest('.hlWeekOpen'); if(!o) return;
+      loadWeek(o.dataset.ini);
+      document.getElementById('hlDraftsCard').open = false;
+      window.scrollTo({ top:0, behavior:'smooth' });
     });
 
-    load();
+    // ---- atualizações automáticas ----
+    document.getElementById('tabs').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-view="highlights"]');
+      if(b) setTimeout(pull, 0);
+    });
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden && viewActive()) pull(); });
+    setInterval(function(){ if(!document.hidden && viewActive()) pull(); }, 15000);
+
+    // ---- início ----
     renderFavs();
-    renderDrafts();
-    if(!hlState.ini || !hlState.fim){ var p = semana(0); hlState.ini = p[0]; hlState.fim = p[1]; }
-    document.getElementById('hlIni').value = hlState.ini;
-    document.getElementById('hlFim').value = hlState.fim;
-    if(!hlState.items.length) hlState.items.push(newItem());
-    renderItems();
+    loadWeek(mondayOf(new Date()));
+    // traz o rascunho antigo (só deste aparelho) pra semana dele, uma única vez
+    (function migrateOld(){
+      var old = lsGet(OLD_KEY, null);
+      if(!old || !old.items) return;
+      var withContent = old.items.filter(hasContent);
+      if(withContent.length && old.ini){
+        var ini = mondayOf(parseYmd(old.ini));
+        var target = ini === week.ini ? itemsById : (lsGet('inspecoes_hl_semana_' + ini, {}) || {});
+        var t = Date.now();
+        withContent.forEach(function(x, i){
+          var it = newItem(); it.tipo = x.tipo || ''; it.proc = x.proc || ''; it.procOutro = x.procOutro || ''; it.desc = x.desc || '';
+          it.ord = t + i; it.upd = t + i; target[it.id] = it;
+        });
+        if(ini === week.ini){ renderItems(); scheduleSave(); }
+        else lsSet('inspecoes_hl_semana_' + ini, target);
+      }
+      lsDel(OLD_KEY);
+      lsDel('inspecoes_highlights_rascunhos_salvos');
+    })();
   })();
 
   // ---------- REGISTRAR (lote + relatório) ----------
@@ -3924,7 +4016,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261020164155';
+  var APP_BUILD = '20261020165900';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
