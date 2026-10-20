@@ -3924,7 +3924,7 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261019221431';
+  var APP_BUILD = '20261020164155';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
@@ -3949,6 +3949,25 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
   document.addEventListener('visibilitychange', function(){ if(!document.hidden) check(); });
   window.addEventListener('pageshow', check);
   setInterval(check, 10 * 60 * 1000);
+})();
+</script>
+<script>
+(function(){
+  // No computador, o app do WhatsApp para Windows troca emojis como 🔴🟡🟢🔵📍 por "?" quando o texto
+  // chega pelo link wa.me. Ali abrimos o WhatsApp Web (que mantém os emojis) e também copiamos o texto,
+  // pra dar pra colar direto em qualquer conversa.
+  var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  if(isMobile) return;
+  document.addEventListener('click', function(e){
+    var a = e.target.closest ? e.target.closest('a[href^="https://wa.me/?text="]') : null;
+    if(!a) return;
+    var q = a.getAttribute('href').slice('https://wa.me/?text='.length);
+    var text = '';
+    try{ text = decodeURIComponent(q); }catch(err){}
+    if(text && navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).catch(function(){}); }
+    a.setAttribute('href', 'https://web.whatsapp.com/send?text=' + q);
+    setTimeout(function(){ a.setAttribute('href', 'https://wa.me/?text=' + q); }, 0);
+  }, true);
 })();
 </script>
 </body>
