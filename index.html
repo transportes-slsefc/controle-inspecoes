@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Controle de Inspeções Veiculares</title>
-<meta name="apple-mobile-web-app-title" content="Inspeções">
+<title>Transporte SLS EFC</title>
+<meta name="apple-mobile-web-app-title" content="Transporte SLS EFC">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0F1720">
@@ -480,6 +480,18 @@ footer.note { text-align:center; color:var(--ink-soft); font-size:12px; margin-t
 }
 @media (prefers-reduced-motion: reduce){ .sidebar, .sb-backdrop { transition:none; } }
 body.gate-locked .sidebar, body.gate-locked .sb-backdrop { display:none; }
+
+.sb-group-head { display:flex; align-items:center; gap:12px; width:100%; padding:11px 12px; border:none; border-radius:10px; background:transparent;
+  color:var(--ink); font-family:var(--font-sans); font-size:14.5px; font-weight:600; cursor:pointer; text-align:left; }
+.sb-group-head:hover { background:var(--surface-2); }
+.sb-group-head:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.sb-group-head .chev { margin-left:auto; transition:transform .18s ease; color:var(--ink-soft); }
+.sb-group.closed .sb-group-head .chev { transform:rotate(-90deg); }
+.sb-group-items { display:flex; flex-direction:column; gap:2px; margin:2px 0 6px 22px; padding-left:10px; border-left:1px solid var(--border); }
+.sb-group.closed .sb-group-items { display:none; }
+.sidebar nav.tabs .sb-group-items button { padding:9px 12px; font-size:14px; }
+.topbar .crumb { display:block; font-size:12px; font-weight:500; color:var(--ink-soft); letter-spacing:0; }
+@media (prefers-reduced-motion: reduce){ .sb-group-head .chev { transition:none; } }
 </style>
 </head>
 <body class="gate-locked">
@@ -495,7 +507,7 @@ body.gate-locked .sidebar, body.gate-locked .sb-backdrop { display:none; }
 <div id="readGate" class="read-gate">
   <form id="readGateForm" class="read-gate-card">
     <div class="mark" style="margin:0 auto 14px;"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><rect x="4" y="3.5" width="16" height="18" rx="2.2" stroke="currentColor" stroke-width="1.6"/><rect x="8.3" y="1.4" width="7.4" height="3.6" rx="1.2" fill="currentColor"/><path d="M7.2 9.7l1.3 1.3 2.5-2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="12.3" y1="9.5" x2="16.8" y2="9.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M7.2 14.4l1.3 1.3 2.5-2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><line x1="12.3" y1="14.2" x2="16.8" y2="14.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="7.2" y1="18.5" x2="16.8" y2="18.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/></svg></div>
-    <h2>Controle de Inspeções Veiculares</h2>
+    <h2>Transporte SLS EFC</h2>
     <p class="hint" style="margin-bottom:14px;">Digite o código de acesso para visualizar os dados.</p>
     <input type="password" id="readGateInput" placeholder="Código de acesso" autofocus required>
     <button type="submit" class="submit" style="width:100%; margin-top:12px;">Entrar</button>
@@ -532,11 +544,16 @@ body.gate-locked .sidebar, body.gate-locked .sb-backdrop { display:none; }
   <aside class="sidebar" id="sidebar">
       <div class="sb-brand">
         <div class="mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;"><rect x="4" y="3.5" width="16" height="18" rx="2.2" stroke="currentColor" stroke-width="1.0"/><rect x="8.3" y="1.4" width="7.4" height="3.6" rx="1.2" fill="currentColor"/><path d="M7.2 9.7l1.3 1.3 2.5-2.5" stroke="currentColor" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/><line x1="12.3" y1="9.5" x2="16.8" y2="9.5" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/><path d="M7.2 14.4l1.3 1.3 2.5-2.5" stroke="currentColor" stroke-width="1.0" stroke-linecap="round" stroke-linejoin="round"/><line x1="12.3" y1="14.2" x2="16.8" y2="14.2" stroke="currentColor" stroke-width="0.9" stroke-linecap="round"/><line x1="7.2" y1="18.5" x2="16.8" y2="18.5" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/></svg></div>
-        <div><b>Inspeções Veiculares</b><span>STOP de Segurança · 5S · Garagem</span></div>
+        <div><b>Transporte SLS EFC</b><span>Coordenação São Luís EFC</span></div>
       </div>
       <nav class="tabs" id="tabs" aria-label="Seções do app">
-        <button data-view="painel" class="active"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/></svg><span>Painel</span></button>
-        <button data-view="registrar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><line x1="12" y1="9.5" x2="12" y2="15.5"/><line x1="9" y1="12.5" x2="15" y2="12.5"/></svg><span>Registrar</span><span id="registrarLockIcon">🔒</span></button>
+        <div class="sb-group" id="sbGroupInsp">
+          <button type="button" class="sb-group-head" aria-expanded="true" aria-controls="sbGroupInspItems"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16.5V8.5A1.5 1.5 0 0 1 4.5 7h10A1.5 1.5 0 0 1 16 8.5V10h2.6a1.5 1.5 0 0 1 1.2.6l1.9 2.6a1.5 1.5 0 0 1 .3.9v2.4"/><circle cx="7" cy="17" r="2"/><circle cx="17.5" cy="17" r="2"/><line x1="9" y1="17" x2="15.5" y2="17"/></svg><span>Inspeções</span><svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+          <div class="sb-group-items" id="sbGroupInspItems">
+          <button data-view="painel" class="active"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="8" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.5"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.5"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.5"/></svg><span>Painel</span></button>
+          <button data-view="registrar"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><line x1="12" y1="9.5" x2="12" y2="15.5"/><line x1="9" y1="12.5" x2="15" y2="12.5"/></svg><span>Registrar</span><span id="registrarLockIcon">🔒</span></button>
+          </div>
+        </div>
         <button data-view="highlights"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span>Highlights</span></button>
       </nav>
       <div class="sb-foot">
@@ -4056,7 +4073,7 @@ body.gate-locked .sidebar, body.gate-locked .sb-backdrop { display:none; }
 (function(){
   // Atualização automática: o atalho na tela inicial guarda a página antiga; aqui o app confere
   // se saiu versão nova e recarrega sozinho (ou avisa, se você estiver no meio de um registro).
-  var APP_BUILD = '20261027093236';
+  var APP_BUILD = '20261027112139';
   var checking = false;
   function check(){
     if(checking || location.protocol === 'file:') return;
@@ -4104,16 +4121,25 @@ body.gate-locked .sidebar, body.gate-locked .sb-backdrop { display:none; }
 </script>
 <script>
 (function(){
-  var TITLES = {"painel": "Painel", "registrar": "Registrar inspeções", "highlights": "Highlights"};
+  var TITLES = {"painel": "Painel", "registrar": "Registrar", "highlights": "Highlights"};
+  var GROUP = {"painel": "Inspeções", "registrar": "Inspeções"};
   var body = document.body;
   var toggle = document.getElementById('sbToggle');
   var title = document.getElementById('pageTitle');
   function setTitle(){
     var b = document.querySelector('#tabs button.active');
-    if(b && TITLES[b.dataset.view]) title.textContent = TITLES[b.dataset.view];
+    if(!b || !TITLES[b.dataset.view]) return;
+    var g = GROUP[b.dataset.view];
+    title.innerHTML = (g ? '<span class="crumb">' + g + '</span>' : '') + TITLES[b.dataset.view];
+    if(g && document.getElementById('sbGroupInsp').classList.contains('closed')){ var grp = document.getElementById('sbGroupInsp'); grp.classList.remove('closed'); grp.querySelector('.sb-group-head').setAttribute('aria-expanded','true'); }
   }
   function openSb(){ body.classList.add('sb-open'); toggle.setAttribute('aria-expanded','true'); var a = document.querySelector('#tabs button.active') || document.querySelector('#tabs button'); if(a) a.focus(); }
   function closeSb(){ if(!body.classList.contains('sb-open')) return; body.classList.remove('sb-open'); toggle.setAttribute('aria-expanded','false'); }
+  document.querySelector('#sbGroupInsp .sb-group-head').addEventListener('click', function(){
+    var grp = document.getElementById('sbGroupInsp');
+    var closed = grp.classList.toggle('closed');
+    this.setAttribute('aria-expanded', closed ? 'false' : 'true');
+  });
   toggle.addEventListener('click', function(){ body.classList.contains('sb-open') ? closeSb() : openSb(); });
   document.getElementById('sbBackdrop').addEventListener('click', closeSb);
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeSb(); });
